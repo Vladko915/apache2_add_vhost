@@ -1,0 +1,109 @@
+#!/bin/bash
+# Create virtual host from apache2.
+
+echo -ne "\nCreate virtual host from apache2
+Example: newhost.com
+For cancel enter: exit 
+--------------------------
+Please enter your hostname: "
+
+read new_vhost;
+
+if [ "$new_vhost" == "" ]; then
+    echo -e  "Your not enter the hostname. Bye. \n"
+    exit 1
+fi
+
+if [ "$new_vhost" == "exit" ]; then
+    echo -e  "Your enter 'exit'. Bye. \n"
+    exit 0
+fi
+
+#host to lower
+new_vhost=$(echo "$new_vhost" | tr '[:upper:]' '[:lower:]') 
+
+regexp="^(([[:alnum:]-]{,20})\.)?([[:alnum:]-]{,20})\.[[:alnum:]]{2,10}$"
+
+if [[ "$new_vhost" =~ $regexp ]]; then
+    echo -e  "hostname is correct \n"
+else
+    echo -e "hostname not correct. Bye \n"
+    exit 1
+fi
+
+
+s_def_apache_conf="/etc/apache2/sites-available/000-default.conf"
+s_new_vhost_apache_conf="/etc/apache2/sites-available/${new_vhost}.conf"
+
+if [ -e "$s_def_apache_conf" ]; then
+
+	echo -e "Found default apache config: '${s_def_apache_conf}'\n"
+
+	cp $s_def_apache_conf $s_new_vhost_apache_conf
+	
+	md5sum_new_conf=$(md5sum $s_new_vhost_apache_conf)
+	
+	#if new config  is writable.
+	if [ -w "$s_new_vhost_apache_conf" ]; then
+	   sed -i "s*#ServerName www.example.com*ServerName ${new_vhost}*" $s_new_vhost_apache_conf
+	   sed -i "s*DocumentRoot /var/www/html*DocumentRoot /var/www/${new_vhost}/public_html*" $s_new_vhost_apache_conf
+	   
+	   md5sum_new_conf_replace=$(md5sum $s_new_vhost_apache_conf)
+	   if [ "$md5sum_new_conf" == "$md5sum_new_conf_replace" ]; then
+	      echo -e  "Error. Not updated ${s_new_vhost_apache_conf}. Sorry.  \n"
+	      exit 1
+	   fi
+	   
+	   echo -e "Create new apache config: '${s_new_vhost_apache_conf}'\n"
+
+	   new_hosting_dir="/var/www/${new_vhost}/public_html"
+	   index_file_4_host="${new_hosting_dir}/index.php"
+
+	   mkdir -pv "$new_hosting_dir";
+
+	   if [ -d "$new_hosting_dir" ]; then
+
+	 	 touch "$index_file_4_host";
+
+		 #if index-file is writable.
+		 if [ -w "$index_file_4_host" ]; then
+		    echo "<?php echo 'Welcome to ${new_vhost}'; phpinfo(); ?>" > "$index_file_4_host"
+		 fi
+
+	   	 chmod -Rv 755 "${new_hosting_dir}"
+
+		#user role is not root
+	   	 chown -Rv user:user "${new_hosting_dir}"
+
+		 #Enabled virtual host
+		 a2ensite "${new_vhost}.conf"
+
+		 #Restart apache2
+             systemctl restart apache2
+
+		 path_to_hosts="/etc/hosts";
+
+		 #if hosts file is writable.
+		 if [ -w "$path_to_hosts" ]; then
+		 	sed  -i "1i 127.0.0.1\t${new_vhost}" "${path_to_hosts}"  #write as first line
+			echo -e  "Add record to '${path_to_hosts}'.  \n"
+		 else
+		      echo -e  "Error. ${path_to_hosts} not writable.Sorry.  \n"
+		      exit 1			
+		 fi
+
+		 echo -e "\nCongratulation, Your virtual host '${new_vhost}' configured. Enjoy!\n";
+	
+		 exit 0;
+		 
+	   else
+		echo "Directory '$new_hosting_dir' does not exist."
+		exit 1
+	   fi #if isset new_hosting_dir	   
+	   	
+	fi #if new config  is writable.
+
+else
+	echo "$s_def_apache_conf does not exist"
+	exit 1
+fi   #if isset default config for virtual host from apache2
