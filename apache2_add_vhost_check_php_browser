@@ -34,6 +34,7 @@ fi
 
 s_def_apache_conf="/etc/apache2/sites-available/000-default.conf"
 s_new_vhost_apache_conf="/etc/apache2/sites-available/${new_vhost}.conf"
+s_apache2_enable_folder="/etc/apache2/sites-enabled/"
 
 if [ -e "$s_def_apache_conf" ]; then
 
@@ -76,7 +77,11 @@ if [ -e "$s_def_apache_conf" ]; then
 	   	 chown -Rv user:user "${new_hosting_dir}"
 
 		 #Enabled virtual host
-		 a2ensite "${new_vhost}.conf"
+                 #a2ensite "${new_vhost}.conf"
+                
+                 ln -s "$s_new_vhost_apache_conf" "$s_apache2_enable_folder"
+                 echo -e "Create soft-link : '${s_apache2_enable_folder}${new_vhost}.conf'\n"
+
 
 		 #Restart apache2
              systemctl restart apache2
